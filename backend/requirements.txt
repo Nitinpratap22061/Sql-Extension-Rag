@@ -1,10 +1,12 @@
-streamlit
-langchain
-langchain-community
-langchain-pinecone
-langchain-cohere
-pinecone-client
-cohere
-python-dotenv
-pypdf
-langchain_groq
+streamlit==1.25.0
+langchain==0.1.0  # or latest stable
+langchain-community==0.1.0
+langchain-pinecone==0.1.0
+langchain-cohere==0.1.0
+langchain-groq==0.1.0
+pinecone-client==2.2.0
+cohere==5.6.0
+python-dotenv==1.0.0
+pypdf==3.10.0
+flask==2.4.0
+flask-cors==3.1.1
