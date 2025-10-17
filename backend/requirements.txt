@@ -7,3 +7,4 @@ pinecone-client
 cohere
 python-dotenv
 pypdf
+langchain_groq
