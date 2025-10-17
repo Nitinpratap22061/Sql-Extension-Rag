@@ -61,47 +61,58 @@ Question:
 
 Answer:
 """
-
         response = llm.invoke(prompt)
         return response.content.strip()
     except Exception as e:
         return f"⚠️ Error processing query: {str(e)}"
 
-# ==================== API ENDPOINT ====================
+
+# ==================== HTTP SERVER HANDLER ====================
 class RAGRequestHandler(BaseHTTPRequestHandler):
-    def do_OPTIONS(self):
-        self.send_response(200)
+    def _set_headers(self, status=200, content_type="application/json"):
+        """Helper to send common headers."""
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
 
+    def do_OPTIONS(self):
+        """Handle preflight CORS requests."""
+        self._set_headers()
+
     def do_POST(self):
+        """Handle POST /query requests."""
         if self.path == "/query":
-            content_length = int(self.headers.get("Content-Length", 0))
-            body = self.rfile.read(content_length)
-            data = json.loads(body)
-            query = data.get("query", "")
+            try:
+                content_length = int(self.headers.get("Content-Length", 0))
+                body = self.rfile.read(content_length)
+                data = json.loads(body)
+                query = data.get("query", "")
 
-            answer = get_answer(query)
-
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            self.wfile.write(json.dumps({"answer": answer}).encode())
+                answer = get_answer(query)
+                self._set_headers()
+                self.wfile.write(json.dumps({"answer": answer}).encode())
+            except Exception as e:
+                self._set_headers(500)
+                self.wfile.write(json.dumps({"error": str(e)}).encode())
         else:
-            self.send_error(404, "Endpoint not found.")
+            self._set_headers(404)
+            self.wfile.write(json.dumps({"error": "Endpoint not found."}).encode())
 
+
+# ==================== SERVER THREAD ====================
 def run_server():
-    server_address = ('', 8502)
+    port = int(os.environ.get("PORT", 8502))  # Render assigns PORT dynamically
+    server_address = ('', port)
     httpd = HTTPServer(server_address, RAGRequestHandler)
-    print("✅ API running at http://localhost:8502/query")
+    print(f"✅ API running at http://0.0.0.0:{port}/query")
     httpd.serve_forever()
 
-# ==================== START SERVER THREAD ====================
+
 threading.Thread(target=run_server, daemon=True).start()
-st.info("✅ Backend API is live at: http://localhost:8502/query")
+st.info("✅ Backend API live (Render-compatible with CORS)")
 
 # ==================== STREAMLIT INTERFACE ====================
 query = st.text_input("Ask your SQL question:")
