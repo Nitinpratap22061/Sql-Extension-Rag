@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "SQL RAG Assistant",
+  "version": "1.0",
+  "description": "Ask SQL questions with AI directly in your browser.",
+  "permissions": ["activeTab", "storage"],
+  "host_permissions": ["http://127.0.0.1:8502/*", "http://localhost:8502/*"],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}

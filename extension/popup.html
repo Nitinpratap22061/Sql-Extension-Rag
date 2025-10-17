@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SQL RAG Assistant</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    /* Larger popup window */
+    html, body {
+      width: 420px;
+      height: 600px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>🧠 SQL RAG Assistant</h2>
+    <p class="subtitle">Your smart SQL query explainer</p>
+
+    <div class="input-area">
+      <input type="text" id="query" placeholder="Ask your SQL question..." />
+      <button id="askBtn">Ask</button>
+    </div>
+
+    <div id="response" class="response">
+      <p class="placeholder">Response will appear here...</p>
+    </div>
+
+    <footer>
+      <small>© 2025 SQL RAG Extension</small>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
