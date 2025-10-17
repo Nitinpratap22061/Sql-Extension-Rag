@@ -35,7 +35,6 @@ st.success(f"✅ Loaded and split into {len(docs)} chunks")
 embeddings = CohereEmbeddings(model="embed-english-v3.0", cohere_api_key=COHERE_API_KEY)
 pc = Pinecone(api_key=PINECONE_API_KEY)
 index_name = "pdf-chat-index"
-
 vectorstore = PineconeVectorStore.from_documents(docs, embedding=embeddings, index_name=index_name)
 st.success("✅ Vector store connected successfully")
 
@@ -48,7 +47,6 @@ def get_answer(query: str) -> str:
     try:
         results = vectorstore.similarity_search(query, k=3)
         context = "\n\n".join([r.page_content for r in results])
-
         prompt = f"""
 You are a helpful SQL tutor. Use the given context and your SQL knowledge.
 Explain the answer clearly and give short examples if useful.
@@ -67,16 +65,18 @@ Answer:
         return f"⚠️ Error processing query: {str(e)}"
 
 
-# ==================== CORS ENABLED BACKEND SERVER ====================
+# ==================== BACKEND SERVER WITH FULL CORS ====================
 class RAGRequestHandler(BaseHTTPRequestHandler):
     def _send_cors_headers(self):
+        # ✅ Allow all origins (Chrome extension included)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.send_header("Access-Control-Max-Age", "86400")
 
     def do_OPTIONS(self):
-        self.send_response(204)
+        # ✅ Must return 200 for Chrome extension preflight
+        self.send_response(200)
         self._send_cors_headers()
         self.end_headers()
 
@@ -112,7 +112,7 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
 
 def run_server():
     """Run HTTP API for /query endpoint"""
-    port = int(os.environ.get("PORT", 8502))
+    port = int(os.environ.get("PORT", 10000))  # ✅ Use Render's assigned port
     server_address = ("0.0.0.0", port)
     httpd = HTTPServer(server_address, RAGRequestHandler)
     print(f"✅ Backend API running at: https://sql-extension-rag-1.onrender.com/query")
