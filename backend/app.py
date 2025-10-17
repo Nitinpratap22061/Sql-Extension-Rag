@@ -1,10 +1,9 @@
 import os
 import json
-import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
-
-import streamlit as st
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 from dotenv import load_dotenv
+
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_cohere import CohereEmbeddings
@@ -12,41 +11,43 @@ from langchain_pinecone import PineconeVectorStore
 from langchain_groq import ChatGroq
 from pinecone import Pinecone
 
-# ==================== LOAD ENV VARIABLES ====================
+# ==================== LOAD ENVIRONMENT VARIABLES ====================
 load_dotenv()
 COHERE_API_KEY = os.getenv("COHERE_API_KEY")
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-# ==================== STREAMLIT CONFIG ====================
-st.set_page_config(page_title="SQL RAG Assistant", page_icon="🧠")
-st.title("🧠 SQL RAG Assistant (Groq + RAG)")
+# ==================== FLASK APP SETUP ====================
+app = Flask(__name__)
+CORS(app)  # ✅ Allow all origins for your Chrome extension
 
-# ==================== LOAD PDF ====================
-st.write("📄 Loading SQL Manual PDF...")
+# ==================== LOAD AND SPLIT PDF ====================
+print("📄 Loading SQL Manual PDF...")
 loader = PyPDFLoader("SQL-Manual.pdf")
 pages = loader.load()
 
 text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
 docs = text_splitter.split_documents(pages)
-st.success(f"✅ Loaded and split into {len(docs)} chunks")
+print(f"✅ Loaded and split into {len(docs)} chunks")
 
-# ==================== PINECONE ====================
+# ==================== PINECONE SETUP ====================
 embeddings = CohereEmbeddings(model="embed-english-v3.0", cohere_api_key=COHERE_API_KEY)
 pc = Pinecone(api_key=PINECONE_API_KEY)
 index_name = "pdf-chat-index"
-vectorstore = PineconeVectorStore.from_documents(docs, embedding=embeddings, index_name=index_name)
-st.success("✅ Vector store connected successfully")
 
-# ==================== LLM ====================
+vectorstore = PineconeVectorStore.from_documents(docs, embedding=embeddings, index_name=index_name)
+print("✅ Vector store connected successfully")
+
+# ==================== LLM SETUP ====================
 llm = ChatGroq(groq_api_key=GROQ_API_KEY, model_name="llama-3.1-8b-instant")
-st.success("🤖 Connected to Groq LLM")
+print("🤖 Connected to Groq LLM")
 
 # ==================== RAG FUNCTION ====================
 def get_answer(query: str) -> str:
     try:
         results = vectorstore.similarity_search(query, k=3)
         context = "\n\n".join([r.page_content for r in results])
+
         prompt = f"""
 You are a helpful SQL tutor. Use the given context and your SQL knowledge.
 Explain the answer clearly and give short examples if useful.
@@ -59,75 +60,22 @@ Question:
 
 Answer:
 """
+
         response = llm.invoke(prompt)
         return response.content.strip()
     except Exception as e:
         return f"⚠️ Error processing query: {str(e)}"
 
+# ==================== API ROUTE ====================
+@app.route("/query", methods=["POST"])
+def query():
+    data = request.json
+    query_text = data.get("query", "")
+    answer = get_answer(query_text)
+    return jsonify({"answer": answer})
 
-# ==================== BACKEND SERVER WITH FULL CORS ====================
-class RAGRequestHandler(BaseHTTPRequestHandler):
-    def _send_cors_headers(self):
-        # ✅ Allow all origins (Chrome extension included)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-        self.send_header("Access-Control-Max-Age", "86400")
-
-    def do_OPTIONS(self):
-        # ✅ Must return 200 for Chrome extension preflight
-        self.send_response(200)
-        self._send_cors_headers()
-        self.end_headers()
-
-    def do_POST(self):
-        if self.path == "/query":
-            try:
-                content_length = int(self.headers.get("Content-Length", 0))
-                body = self.rfile.read(content_length)
-                data = json.loads(body)
-                query = data.get("query", "")
-
-                answer = get_answer(query)
-                response = {"answer": answer}
-
-                self.send_response(200)
-                self._send_cors_headers()
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps(response).encode("utf-8"))
-            except Exception as e:
-                self.send_response(500)
-                self._send_cors_headers()
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
-        else:
-            self.send_response(404)
-            self._send_cors_headers()
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({"error": "Invalid endpoint"}).encode("utf-8"))
-
-
-def run_server():
-    """Run HTTP API for /query endpoint"""
-    port = int(os.environ.get("PORT", 10000))  # ✅ Use Render's assigned port
-    server_address = ("0.0.0.0", port)
-    httpd = HTTPServer(server_address, RAGRequestHandler)
-    print(f"✅ Backend API running at: https://sql-extension-rag-1.onrender.com/query")
-    httpd.serve_forever()
-
-
-# ==================== START THREAD ====================
-threading.Thread(target=run_server, daemon=True).start()
-st.info("✅ Backend API endpoint: https://sql-extension-rag-1.onrender.com/query")
-
-# ==================== STREAMLIT INTERFACE ====================
-query = st.text_input("Ask your SQL question:")
-
-if st.button("Ask"):
-    if query:
-        with st.spinner("Thinking..."):
-            answer = get_answer(query)
-            st.markdown(answer)
+# ==================== RUN FLASK ====================
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8502))  # Render sets PORT env variable
+    print(f"🚀 API running on port {port}")
+    app.run(host="0.0.0.0", port=port)
