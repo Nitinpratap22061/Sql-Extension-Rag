@@ -12,17 +12,17 @@ from langchain_pinecone import PineconeVectorStore
 from langchain_groq import ChatGroq
 from pinecone import Pinecone
 
-# ==================== LOAD ENVIRONMENT VARIABLES ====================
+# ==================== LOAD ENV VARIABLES ====================
 load_dotenv()
 COHERE_API_KEY = os.getenv("COHERE_API_KEY")
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-# ==================== STREAMLIT UI ====================
+# ==================== STREAMLIT CONFIG ====================
 st.set_page_config(page_title="SQL RAG Assistant", page_icon="🧠")
 st.title("🧠 SQL RAG Assistant (Groq + RAG)")
 
-# ==================== LOAD AND SPLIT PDF ====================
+# ==================== LOAD PDF ====================
 st.write("📄 Loading SQL Manual PDF...")
 loader = PyPDFLoader("SQL-Manual.pdf")
 pages = loader.load()
@@ -31,7 +31,7 @@ text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=20
 docs = text_splitter.split_documents(pages)
 st.success(f"✅ Loaded and split into {len(docs)} chunks")
 
-# ==================== PINECONE SETUP ====================
+# ==================== PINECONE ====================
 embeddings = CohereEmbeddings(model="embed-english-v3.0", cohere_api_key=COHERE_API_KEY)
 pc = Pinecone(api_key=PINECONE_API_KEY)
 index_name = "pdf-chat-index"
@@ -39,7 +39,7 @@ index_name = "pdf-chat-index"
 vectorstore = PineconeVectorStore.from_documents(docs, embedding=embeddings, index_name=index_name)
 st.success("✅ Vector store connected successfully")
 
-# ==================== LLM SETUP ====================
+# ==================== LLM ====================
 llm = ChatGroq(groq_api_key=GROQ_API_KEY, model_name="llama-3.1-8b-instant")
 st.success("🤖 Connected to Groq LLM")
 
@@ -67,23 +67,20 @@ Answer:
         return f"⚠️ Error processing query: {str(e)}"
 
 
-# ==================== HTTP SERVER WITH STRONG CORS ====================
+# ==================== CORS ENABLED BACKEND SERVER ====================
 class RAGRequestHandler(BaseHTTPRequestHandler):
     def _send_cors_headers(self):
-        """Send CORS headers for Chrome extensions and all origins."""
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-        self.send_header("Access-Control-Max-Age", "86400")  # cache preflight 1 day
+        self.send_header("Access-Control-Max-Age", "86400")
 
     def do_OPTIONS(self):
-        """Handle CORS preflight properly."""
-        self.send_response(204)  # No content
+        self.send_response(204)
         self._send_cors_headers()
         self.end_headers()
 
     def do_POST(self):
-        """Handle POST /query."""
         if self.path == "/query":
             try:
                 content_length = int(self.headers.get("Content-Length", 0))
@@ -99,7 +96,6 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(json.dumps(response).encode("utf-8"))
-
             except Exception as e:
                 self.send_response(500)
                 self._send_cors_headers()
@@ -111,22 +107,23 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
             self._send_cors_headers()
             self.send_header("Content-Type", "application/json")
             self.end_headers()
-            self.wfile.write(json.dumps({"error": "Endpoint not found."}).encode("utf-8"))
+            self.wfile.write(json.dumps({"error": "Invalid endpoint"}).encode("utf-8"))
 
 
-# ==================== SERVER THREAD ====================
 def run_server():
+    """Run HTTP API for /query endpoint"""
     port = int(os.environ.get("PORT", 8502))
     server_address = ("0.0.0.0", port)
     httpd = HTTPServer(server_address, RAGRequestHandler)
-    print(f"✅ API running at http://0.0.0.0:{port}/query")
+    print(f"✅ Backend API running at: https://sql-extension-rag-1.onrender.com/query")
     httpd.serve_forever()
 
 
+# ==================== START THREAD ====================
 threading.Thread(target=run_server, daemon=True).start()
-st.info("✅ Backend API live (Render-compatible with Chrome Extension CORS)")
+st.info("✅ Backend API endpoint: https://sql-extension-rag-1.onrender.com/query")
 
-# ==================== STREAMLIT FRONTEND ====================
+# ==================== STREAMLIT INTERFACE ====================
 query = st.text_input("Ask your SQL question:")
 
 if st.button("Ask"):
