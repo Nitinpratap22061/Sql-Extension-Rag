@@ -1,12 +1,23 @@
-streamlit==1.25.0
-langchain==0.1.0  # or latest stable
-langchain-community==0.1.0
-langchain-pinecone==0.1.0
-langchain-cohere==0.1.0
-langchain-groq==0.1.0
-pinecone-client==2.2.0
-cohere==5.6.0
+# Web framework
+flask==2.3.3
+flask-cors==3.1.2
+
+# Environment
 python-dotenv==1.0.0
-pypdf==3.10.0
-flask==2.4.0
-flask-cors==3.1.1
+
+# Streamlit (optional, if you want a local UI)
+streamlit==1.25.0
+
+# PDF loader
+pypdf==3.11.0
+
+# LangChain + community modules
+langchain==0.3.32
+langchain-community==0.3.32
+langchain-pinecone==0.3.32
+langchain-cohere==0.3.32
+langchain-groq==0.3.32
+
+# Embeddings & vector DB
+pinecone-client==2.2.2
+cohere==5.6.0
