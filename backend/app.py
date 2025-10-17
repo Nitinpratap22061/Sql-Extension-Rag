@@ -67,23 +67,23 @@ Answer:
         return f"⚠️ Error processing query: {str(e)}"
 
 
-# ==================== HTTP SERVER HANDLER ====================
+# ==================== HTTP SERVER WITH STRONG CORS ====================
 class RAGRequestHandler(BaseHTTPRequestHandler):
-    def _set_headers(self, status=200, content_type="application/json"):
-        """Helper to send common headers."""
-        self.send_response(status)
-        self.send_header("Content-Type", content_type)
+    def _send_cors_headers(self):
+        """Send CORS headers for Chrome extensions and all origins."""
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-        self.end_headers()
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        self.send_header("Access-Control-Max-Age", "86400")  # cache preflight 1 day
 
     def do_OPTIONS(self):
-        """Handle preflight CORS requests."""
-        self._set_headers()
+        """Handle CORS preflight properly."""
+        self.send_response(204)  # No content
+        self._send_cors_headers()
+        self.end_headers()
 
     def do_POST(self):
-        """Handle POST /query requests."""
+        """Handle POST /query."""
         if self.path == "/query":
             try:
                 content_length = int(self.headers.get("Content-Length", 0))
@@ -92,29 +92,41 @@ class RAGRequestHandler(BaseHTTPRequestHandler):
                 query = data.get("query", "")
 
                 answer = get_answer(query)
-                self._set_headers()
-                self.wfile.write(json.dumps({"answer": answer}).encode())
+                response = {"answer": answer}
+
+                self.send_response(200)
+                self._send_cors_headers()
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(response).encode("utf-8"))
+
             except Exception as e:
-                self._set_headers(500)
-                self.wfile.write(json.dumps({"error": str(e)}).encode())
+                self.send_response(500)
+                self._send_cors_headers()
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
         else:
-            self._set_headers(404)
-            self.wfile.write(json.dumps({"error": "Endpoint not found."}).encode())
+            self.send_response(404)
+            self._send_cors_headers()
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": "Endpoint not found."}).encode("utf-8"))
 
 
 # ==================== SERVER THREAD ====================
 def run_server():
-    port = int(os.environ.get("PORT", 8502))  # Render assigns PORT dynamically
-    server_address = ('', port)
+    port = int(os.environ.get("PORT", 8502))
+    server_address = ("0.0.0.0", port)
     httpd = HTTPServer(server_address, RAGRequestHandler)
     print(f"✅ API running at http://0.0.0.0:{port}/query")
     httpd.serve_forever()
 
 
 threading.Thread(target=run_server, daemon=True).start()
-st.info("✅ Backend API live (Render-compatible with CORS)")
+st.info("✅ Backend API live (Render-compatible with Chrome Extension CORS)")
 
-# ==================== STREAMLIT INTERFACE ====================
+# ==================== STREAMLIT FRONTEND ====================
 query = st.text_input("Ask your SQL question:")
 
 if st.button("Ask"):
